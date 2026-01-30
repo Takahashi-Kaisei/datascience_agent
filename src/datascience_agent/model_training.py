@@ -13,12 +13,11 @@ Complexity: O(n * f * t) where n = samples, f = features, t = trees
 
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import joblib
 import lightgbm as lgb
 import numpy as np
-import pandas as pd
+from scipy import sparse
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
@@ -39,7 +38,7 @@ class ModeratorModel:
     偽陽性（False Positive）を減らすことを重視
     """
 
-    def __init__(self, params: Dict = None):
+    def __init__(self, params: dict = None):
         """
         モデル初期化
 
@@ -50,7 +49,7 @@ class ModeratorModel:
         self.model = None
         self.threshold = 0.5  # デフォルト閾値
 
-    def _get_default_params(self) -> Dict:
+    def _get_default_params(self) -> dict:
         """デフォルトパラメータ"""
         return {
             "objective": "binary",
@@ -72,7 +71,7 @@ class ModeratorModel:
         X_val: np.ndarray,
         y_val: np.ndarray,
         target_precision: float = 0.90,
-    ) -> Dict:
+    ) -> dict:
         """
         モデルを学習し、最適な閾値を探索
 
@@ -131,7 +130,9 @@ class ModeratorModel:
         precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
 
         # target_precision以上のインデックスを特定
+        # precisions/recalls は thresholds より1要素長いため、thresholds の範囲内に制限
         valid_indices = np.where(precisions >= target_precision)[0]
+        valid_indices = valid_indices[valid_indices < len(thresholds)]
 
         if len(valid_indices) == 0:
             # 目標達成不可の場合は0.5を返す
@@ -170,7 +171,7 @@ class ModeratorModel:
 
         return self.model.predict(X)
 
-    def evaluate(self, X: np.ndarray, y_true: np.ndarray) -> Dict:
+    def evaluate(self, X: np.ndarray, y_true: np.ndarray) -> dict:
         """
         モデルを評価
 
@@ -215,8 +216,8 @@ class ModeratorModel:
 
 
 def cross_validate(
-    X: np.ndarray, y: np.ndarray, params: Dict, n_splits: int = 5, target_precision: float = 0.90
-) -> Dict:
+    X: np.ndarray, y: np.ndarray, params: dict, n_splits: int = 5, target_precision: float = 0.90
+) -> dict:
     """
     5-Fold Cross Validationを実行
 
@@ -262,7 +263,7 @@ def cross_validate(
         "roc_auc": np.mean([r["metrics"]["roc_auc"] for r in fold_results]),
     }
 
-    print(f"\nCV平均スコア:")
+    print("\nCV平均スコア:")
     print(f"  Precision: {avg_metrics['precision']:.4f}")
     print(f"  Recall: {avg_metrics['recall']:.4f}")
     print(f"  F0.5: {avg_metrics['f05']:.4f}")
@@ -276,7 +277,7 @@ def compare_approaches(
     X_val: np.ndarray,
     y_val: np.ndarray,
     feature_name: str,
-) -> Dict:
+) -> dict:
     """
     is_unbalance vs ダウンサンプリングを比較
 
@@ -330,15 +331,27 @@ def compare_approaches(
 
     # ダウンサンプリング
     n_anomaly = np.sum(y_train == 1)
+    n_normal = np.sum(y_train == 0)
     anomaly_indices = np.where(y_train == 1)[0]
     normal_indices = np.where(y_train == 0)[0]
 
-    # 異常クラスと同数の正常クラスをサンプリング
+    # 少数クラスに合わせてサンプリング
+    n_min = min(n_anomaly, n_normal)
+
+    # 異常クラス・正常クラスを少数クラス数に揃えてサンプリング
     np.random.seed(42)
-    sampled_normal_indices = np.random.choice(normal_indices, size=n_anomaly, replace=False)
+    if n_anomaly > n_min:
+        sampled_anomaly_indices = np.random.choice(anomaly_indices, size=n_min, replace=False)
+    else:
+        sampled_anomaly_indices = anomaly_indices
+
+    if n_normal > n_min:
+        sampled_normal_indices = np.random.choice(normal_indices, size=n_min, replace=False)
+    else:
+        sampled_normal_indices = normal_indices
 
     # 結合
-    downsampled_indices = np.concatenate([anomaly_indices, sampled_normal_indices])
+    downsampled_indices = np.concatenate([sampled_anomaly_indices, sampled_normal_indices])
     np.random.shuffle(downsampled_indices)
 
     X_train_down = X_train[downsampled_indices]
@@ -416,9 +429,9 @@ def main():
 
     # 2. TF-IDF特徴量（500次元）でモデル学習
     print("\n[TF-IDF特徴量（500次元）]")
-    X_train_tfidf = np.load(FEATURE_DIR / "X_train_tfidf_500.npy")
+    X_train_tfidf = sparse.load_npz(FEATURE_DIR / "X_train_tfidf_500.npz")
     y_train_tfidf = np.load(FEATURE_DIR / "y_train_tfidf_500.npy")
-    X_val_tfidf = np.load(FEATURE_DIR / "X_val_tfidf_500.npy")
+    X_val_tfidf = sparse.load_npz(FEATURE_DIR / "X_val_tfidf_500.npz")
     y_val_tfidf = np.load(FEATURE_DIR / "y_val_tfidf_500.npy")
 
     results_tfidf = compare_approaches(
@@ -452,9 +465,9 @@ def main():
     print("\n" + "=" * 60)
     print("モデル学習完了")
     print("=" * 60)
-    print(f"\n保存されたモデル:")
-    print(f"  - moderator_model_manual: 手動特徴量モデル")
-    print(f"  - moderator_model_tfidf_500: TF-IDF特徴量モデル")
+    print("\n保存されたモデル:")
+    print("  - moderator_model_manual: 手動特徴量モデル")
+    print("  - moderator_model_tfidf_500: TF-IDF特徴量モデル")
 
 
 if __name__ == "__main__":

@@ -14,26 +14,8 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from scipy import sparse
 from sklearn.feature_extraction.text import TfidfVectorizer
-
-
-def char_ngram_tokenizer(text, n_range=(1, 2)):
-    """文字N-gramを生成（モジュールレベルで定義）"""
-    tokens = []
-    for n in range(n_range[0], n_range[1] + 1):
-        for i in range(len(text) - n + 1):
-            tokens.append(text[i : i + n])
-    return tokens
-
-
-class CharNgramTokenizer:
-    """Pickle可能なTokenizerクラス"""
-
-    def __init__(self, n_range=(1, 2)):
-        self.n_range = n_range
-
-    def __call__(self, text):
-        return char_ngram_tokenizer(text, self.n_range)
 
 
 def create_tfidf_features(
@@ -65,12 +47,10 @@ def create_tfidf_features(
     """
     print(f"\nTF-IDF特徴量抽出（max_features={max_features}, ngram_range={ngram_range}）")
 
-    # Pickle可能なtokenizer
-    tokenizer = CharNgramTokenizer(n_range=ngram_range)
-
-    # TfidfVectorizerの初期化
+    # TfidfVectorizerの初期化（ネイティブ文字N-gram）
     vectorizer = TfidfVectorizer(
-        tokenizer=tokenizer,
+        analyzer="char",
+        ngram_range=ngram_range,
         max_features=max_features,
         min_df=min_df,
         max_df=max_df,
@@ -86,7 +66,7 @@ def create_tfidf_features(
     X_val_tfidf = vectorizer.transform(val_texts)
     X_test_tfidf = vectorizer.transform(test_texts)
 
-    print(f"TF-IDF特徴量生成完了:")
+    print("TF-IDF特徴量生成完了:")
     print(f"  Train: {X_train_tfidf.shape}")
     print(f"  Val: {X_val_tfidf.shape}")
     print(f"  Test: {X_test_tfidf.shape}")
@@ -99,21 +79,18 @@ def save_tfidf_features(
     X_train, X_val, X_test, y_train, y_val, y_test, vectorizer, output_dir: Path, suffix: str = ""
 ):
     """
-    TF-IDF特徴量を保存
+    TF-IDF特徴量を保存（疎行列形式でメモリ効率化）
     """
     print(f"\nTF-IDF特徴量保存中...（suffix={suffix}）")
 
-    # Sparse matrixをdenseに変換（LightGBM用）
-    X_train_dense = X_train.toarray().astype(np.float32)
-    X_val_dense = X_val.toarray().astype(np.float32)
-    X_test_dense = X_test.toarray().astype(np.float32)
+    # 疎行列のまま保存（LightGBMは疎行列をサポート）
+    sparse.save_npz(output_dir / f"X_train_tfidf{suffix}.npz", X_train.astype(np.float32))
+    sparse.save_npz(output_dir / f"X_val_tfidf{suffix}.npz", X_val.astype(np.float32))
+    sparse.save_npz(output_dir / f"X_test_tfidf{suffix}.npz", X_test.astype(np.float32))
 
-    # 保存
-    np.save(output_dir / f"X_train_tfidf{suffix}.npy", X_train_dense)
+    # ラベルは通常の配列で保存
     np.save(output_dir / f"y_train_tfidf{suffix}.npy", y_train)
-    np.save(output_dir / f"X_val_tfidf{suffix}.npy", X_val_dense)
     np.save(output_dir / f"y_val_tfidf{suffix}.npy", y_val)
-    np.save(output_dir / f"X_test_tfidf{suffix}.npy", X_test_dense)
     np.save(output_dir / f"y_test_tfidf{suffix}.npy", y_test)
 
     # 語彙を保存
@@ -123,6 +100,7 @@ def save_tfidf_features(
     joblib.dump(vectorizer, output_dir / f"tfidf_vectorizer{suffix}.joblib")
 
     print(f"保存完了: {output_dir}")
+    print(f"  疎行列形式で保存（メモリ効率: Train sparsity = {1 - X_train.nnz / (X_train.shape[0] * X_train.shape[1]):.2%}）")
 
 
 def main():

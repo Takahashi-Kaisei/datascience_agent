@@ -14,11 +14,9 @@ YouTubeチャットモデレータモデル用データ前処理
 """
 
 from pathlib import Path
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import GroupShuffleSplit
 
 # パス設定
 DATA_DIR = Path("data/raw/sensai-complete")
@@ -56,20 +54,43 @@ def load_stratified_sample() -> pd.DataFrame:
         nonflag_df = pd.read_parquet(f_non)
 
         # サンプリング
-        n_per_label = samples_per_month // 2  # hidden + deletedで分割
+        # 月あたりのサンプル件数(samples_per_month)を
+        # - hidden + deleted（異常クラス）
+        # - nonflagged（正常クラス）
+        # に分割してサンプリングする
+        anomaly_budget = samples_per_month // 2  # hidden + deleted 用
+        non_anomaly_budget = samples_per_month - anomaly_budget  # nonflagged 用
 
-        for label_df, label_name in [
-            (flagged_hidden, "hidden"),
-            (flagged_deleted, "deleted"),
-            (nonflag_df, "nonflagged"),
-        ]:
-            if len(label_df) > n_per_label:
-                sampled = label_df.sample(n=n_per_label, random_state=42)
-            else:
-                sampled = label_df
-            sampled["month"] = month
-            sampled["is_anomaly"] = 1 if label_name in ["hidden", "deleted"] else 0
-            sampled_dfs.append(sampled)
+        # hidden / deleted で異常クラスの予算をさらに分割
+        n_hidden = anomaly_budget // 2
+        n_deleted = anomaly_budget - n_hidden  # 端数が出た場合はこちらに寄せる
+
+        # hidden
+        if len(flagged_hidden) > n_hidden:
+            sampled_hidden = flagged_hidden.sample(n=n_hidden, random_state=42).copy()
+        else:
+            sampled_hidden = flagged_hidden.copy()
+        sampled_hidden["month"] = month
+        sampled_hidden["is_anomaly"] = 1
+        sampled_dfs.append(sampled_hidden)
+
+        # deleted
+        if len(flagged_deleted) > n_deleted:
+            sampled_deleted = flagged_deleted.sample(n=n_deleted, random_state=42).copy()
+        else:
+            sampled_deleted = flagged_deleted.copy()
+        sampled_deleted["month"] = month
+        sampled_deleted["is_anomaly"] = 1
+        sampled_dfs.append(sampled_deleted)
+
+        # nonflagged（正常クラス）
+        if len(nonflag_df) > non_anomaly_budget:
+            sampled_nonflag = nonflag_df.sample(n=non_anomaly_budget, random_state=42).copy()
+        else:
+            sampled_nonflag = nonflag_df.copy()
+        sampled_nonflag["month"] = month
+        sampled_nonflag["is_anomaly"] = 0
+        sampled_dfs.append(sampled_nonflag)
 
     df = pd.concat(sampled_dfs, ignore_index=True)
     print(f"サンプリング完了: {len(df):,}件")
@@ -116,11 +137,12 @@ def split_data(
     val_ratio: float = 0.15,
     test_ratio: float = 0.15,
     random_state: int = 42,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    ユーザーIDでグループ化してデータを分割
+    ユーザーIDでグループ化し、層化分割を行う
 
-    同じユーザーが複数のセットに含まれるのを防ぐ
+    同じユーザーが複数のセットに含まれるのを防ぎ、
+    かつ各セットで異常クラスの比率を維持する
 
     Args:
         df: 入力データフレーム
@@ -132,46 +154,47 @@ def split_data(
     Returns:
         (train_df, val_df, test_df): 分割済みデータフレーム
     """
-    print("\nデータ分割中...")
+    print("\nデータ分割中（層化 + ユーザーグループ）...")
     assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, (
         "比率の合計が1.0である必要があります"
     )
 
-    # ユーザーごとのラベル（層化用）
+    # ユーザーごとのラベル（層化用: 1つでも異常があれば異常ユーザーとみなす）
     user_labels = df.groupby("authorName")["is_anomaly"].max().reset_index()
 
-    # ユーザーIDによるtrain/test分割
-    test_size = test_ratio
-    gss_test = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    # 異常ユーザーと正常ユーザーを分離
+    anomaly_users = user_labels[user_labels["is_anomaly"] == 1]["authorName"].values
+    normal_users = user_labels[user_labels["is_anomaly"] == 0]["authorName"].values
 
-    train_val_idx, test_idx = next(
-        gss_test.split(
-            X=np.arange(len(user_labels)),
-            y=user_labels["is_anomaly"].values,
-            groups=user_labels["authorName"].values,
-        )
-    )
+    # 各クラスでユーザーをシャッフル
+    np.random.seed(random_state)
+    np.random.shuffle(anomaly_users)
+    np.random.shuffle(normal_users)
 
-    test_users = user_labels.iloc[test_idx]["authorName"].values
-    train_val_users = user_labels.iloc[train_val_idx]["authorName"].values
+    # 各クラスをtrain/val/testに分割
+    n_anomaly = len(anomaly_users)
+    n_normal = len(normal_users)
 
-    # train_valをさらにtrain/valに分割
-    val_size = val_ratio / (train_ratio + val_ratio)  # 残りの中での比率
+    # 異常ユーザーの分割
+    n_anomaly_test = int(n_anomaly * test_ratio)
+    n_anomaly_val = int(n_anomaly * val_ratio)
 
-    train_val_labels = user_labels[user_labels["authorName"].isin(train_val_users)]
+    anomaly_test_users = anomaly_users[:n_anomaly_test]
+    anomaly_val_users = anomaly_users[n_anomaly_test:n_anomaly_test + n_anomaly_val]
+    anomaly_train_users = anomaly_users[n_anomaly_test + n_anomaly_val:]
 
-    gss_val = GroupShuffleSplit(n_splits=1, test_size=val_size, random_state=random_state)
+    # 正常ユーザーの分割
+    n_normal_test = int(n_normal * test_ratio)
+    n_normal_val = int(n_normal * val_ratio)
 
-    train_idx, val_idx = next(
-        gss_val.split(
-            X=np.arange(len(train_val_labels)),
-            y=train_val_labels["is_anomaly"].values,
-            groups=train_val_labels["authorName"].values,
-        )
-    )
+    normal_test_users = normal_users[:n_normal_test]
+    normal_val_users = normal_users[n_normal_test:n_normal_test + n_normal_val]
+    normal_train_users = normal_users[n_normal_test + n_normal_val:]
 
-    train_users = train_val_labels.iloc[train_idx]["authorName"].values
-    val_users = train_val_labels.iloc[val_idx]["authorName"].values
+    # 結合
+    train_users = np.concatenate([anomaly_train_users, normal_train_users])
+    val_users = np.concatenate([anomaly_val_users, normal_val_users])
+    test_users = np.concatenate([anomaly_test_users, normal_test_users])
 
     # ユーザーIDで元のデータを分割
     train_df = df[df["authorName"].isin(train_users)].copy()
