@@ -224,3 +224,20 @@ outputs/models/*.pth
 outputs/figures/*.png
 outputs/figures/*.pdf
 outputs/reports/*.pdf
+
+outputs/reports/*.html
+# Project configuration
+AGENTS.md
+
+# Python version file
+.python-version
+
+# Data directory (raw data is large)
+data/
+
+# GitHub workflows
+.github/
+
+# Initialization files
+main.py
+
