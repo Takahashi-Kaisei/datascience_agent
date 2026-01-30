@@ -14,7 +14,7 @@ def calculate_mean(data: np.ndarray) -> float | None:
     Complexity:
         O(n)
     """
-    if len(data) == 0:
+    if data.size == 0:
         return None
     return float(np.mean(data))
 

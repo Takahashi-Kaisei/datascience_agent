@@ -11,7 +11,7 @@ uv sync
 ## 実行
 
 ```bash
-uv run python main.py
+uv run python -m datascience_agent
 uv run jupyter notebook
 ```
 
@@ -44,8 +44,8 @@ uv run pytest --cov
 ├── tests/                   # テストコード
 ├── data/
 │   ├── raw/                 # 生データ（追跡対象外）
-│   ├── processed/           # 処理済みデータ
-│   └── external/            # 外部データ
+│   ├── processed/           # 処理済みデータ（*.csv, *.parquet は追跡対象外）
+│   └── external/            # 外部データ（*.csv, *.parquet は追跡対象外）
 ├── notebooks/               # Jupyter Notebooks
 └── outputs/
     ├── models/              # 学習済みモデル
