@@ -224,10 +224,14 @@ outputs/models/*.pth
 outputs/figures/*.png
 outputs/figures/*.pdf
 outputs/reports/*.pdf
+outputs/reports/*.html
+
+# Jupyter temporary files
+notebooks/*_nbconvert.ipynb
 
 outputs/reports/*.html
 # Project configuration
-AGENTS.md
+# AGENTS.md
 
 # Python version file
 .python-version
@@ -240,4 +244,3 @@ data/
 
 # Initialization files
 main.py
-
