@@ -224,3 +224,7 @@ outputs/models/*.pth
 outputs/figures/*.png
 outputs/figures/*.pdf
 outputs/reports/*.pdf
+outputs/reports/*.html
+
+# Jupyter temporary files
+notebooks/*_nbconvert.ipynb

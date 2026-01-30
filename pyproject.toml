@@ -8,6 +8,7 @@ dependencies = [
     "matplotlib>=3.10.8",
     "numpy>=2.4.1",
     "pandas>=3.0.0",
+    "pyarrow>=23.0.0",
     "scikit-learn>=1.8.0",
     "seaborn>=0.13.2",
 ]
@@ -24,6 +25,7 @@ build-backend = "setuptools.build_meta"
 dev = [
     "jupyter>=1.1.1",
     "mypy>=1.19.1",
+    "nbformat>=5.10.4",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
