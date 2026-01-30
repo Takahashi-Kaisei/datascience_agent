@@ -228,3 +228,19 @@ outputs/reports/*.html
 
 # Jupyter temporary files
 notebooks/*_nbconvert.ipynb
+
+outputs/reports/*.html
+# Project configuration
+# AGENTS.md
+
+# Python version file
+.python-version
+
+# Data directory (raw data is large)
+data/
+
+# GitHub workflows
+.github/
+
+# Initialization files
+main.py
