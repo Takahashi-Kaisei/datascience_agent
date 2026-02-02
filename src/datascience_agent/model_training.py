@@ -13,12 +13,12 @@ Complexity: O(n * f * t) where n = samples, f = features, t = trees
 
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import joblib
 import lightgbm as lgb
 import numpy as np
-import pandas as pd
+
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
@@ -332,10 +332,12 @@ def compare_approaches(
     n_anomaly = np.sum(y_train == 1)
     anomaly_indices = np.where(y_train == 1)[0]
     normal_indices = np.where(y_train == 0)[0]
+    n_normal = len(normal_indices)
+    n_min = min(n_anomaly, n_normal)
 
-    # 異常クラスと同数の正常クラスをサンプリング
+    # 異常クラス・正常クラスを少数クラス数に揃えてサンプリング
     np.random.seed(42)
-    sampled_normal_indices = np.random.choice(normal_indices, size=n_anomaly, replace=False)
+    sampled_normal_indices = np.random.choice(normal_indices, size=n_min, replace=False)
 
     # 結合
     downsampled_indices = np.concatenate([anomaly_indices, sampled_normal_indices])

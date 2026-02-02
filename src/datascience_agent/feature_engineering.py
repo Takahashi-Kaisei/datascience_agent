@@ -53,7 +53,8 @@ class MessageFeatureExtractor:
 
         Complexity: O(m) where m = len(message)
         """
-        if not message or len(message) == 0:
+        # 非文字列や欠損値は空メッセージとして扱う
+        if not isinstance(message, str) or pd.isna(message) or len(message) == 0:
             return self._get_empty_features()
 
         # 基本統計
@@ -125,8 +126,8 @@ class MessageFeatureExtractor:
         if len(message) < 3:
             return 0.0
 
-        matches = self.repeated_pattern.findall(message)
-        repeated_chars = sum(len(m) for m in matches)
+        matches = self.repeated_pattern.finditer(message)
+        repeated_chars = sum(len(match.group(0)) for match in matches)
         return repeated_chars / len(message)
 
     def transform_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:

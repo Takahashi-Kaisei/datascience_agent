@@ -64,9 +64,9 @@ def load_stratified_sample() -> pd.DataFrame:
             (nonflag_df, "nonflagged"),
         ]:
             if len(label_df) > n_per_label:
-                sampled = label_df.sample(n=n_per_label, random_state=42)
+                sampled = label_df.sample(n=n_per_label, random_state=42).copy()
             else:
-                sampled = label_df
+                sampled = label_df.copy()
             sampled["month"] = month
             sampled["is_anomaly"] = 1 if label_name in ["hidden", "deleted"] else 0
             sampled_dfs.append(sampled)
