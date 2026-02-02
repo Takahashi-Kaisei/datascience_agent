@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=3.0.0",
     "pyarrow>=23.0.0",
     "scikit-learn>=1.8.0",
+    "scipy>=1.15.1",
     "seaborn>=0.13.2",
 ]
 
@@ -31,7 +32,6 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
-
 ]
 
 [tool.ruff]

@@ -17,7 +17,6 @@ Complexity: O(n * m) where n = messages, m = avg message length
 
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -41,7 +40,7 @@ class MessageFeatureExtractor:
         self.special_pattern = re.compile(r"[^\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFFa-zA-Z0-9\s]")
         self.repeated_pattern = re.compile(r"(.)\1{2,}")  # 同じ文字が3回以上連続
 
-    def extract_features(self, message: str) -> Dict[str, float]:
+    def extract_features(self, message: str) -> dict[str, float]:
         """
         単一メッセージから特徴量を抽出
 
@@ -90,7 +89,7 @@ class MessageFeatureExtractor:
 
         return features
 
-    def _get_empty_features(self) -> Dict[str, float]:
+    def _get_empty_features(self) -> dict[str, float]:
         """空メッセージ用のデフォルト特徴量"""
         return {
             "char_count": 0.0,
@@ -164,8 +163,8 @@ class MessageFeatureExtractor:
 
 
 def normalize_features(
-    train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame, feature_cols: List[str]
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, StandardScaler]:
+    train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.DataFrame, feature_cols: list[str]
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, StandardScaler]:
     """
     特徴量を正規化（Trainでfit、全セットでtransform）
 
@@ -203,7 +202,7 @@ def save_features(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    feature_cols: List[str],
+    feature_cols: list[str],
     scaler: StandardScaler,
     output_dir: Path,
 ) -> None:
@@ -260,7 +259,7 @@ def save_features(
     with open(output_dir / "feature_metadata.json", "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"保存完了:")
+    print("保存完了:")
     print(f"  X_train.npy: {X_train.shape}")
     print(f"  X_val.npy: {X_val.shape}")
     print(f"  X_test.npy: {X_test.shape}")
