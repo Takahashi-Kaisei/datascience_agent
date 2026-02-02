@@ -13,6 +13,7 @@ Complexity: O(n * f * t) where n = samples, f = features, t = trees
 
 import json
 from pathlib import Path
+from typing import Dict
 
 import joblib
 import lightgbm as lgb
@@ -334,8 +335,7 @@ def compare_approaches(
     n_normal = np.sum(y_train == 0)
     anomaly_indices = np.where(y_train == 1)[0]
     normal_indices = np.where(y_train == 0)[0]
-
-    # 少数クラスに合わせてサンプリング
+    n_normal = len(normal_indices)
     n_min = min(n_anomaly, n_normal)
 
     # 異常クラス・正常クラスを少数クラス数に揃えてサンプリング
